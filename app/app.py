@@ -112,7 +112,6 @@ async def webhook(request: Request):
         # log incoming messages
         body = await request.json()
 
-        print("Incoming webhook message:", body)
 
         # check if the webhook request contains a message
         message = body.get("entry", [{}])[0].get("changes", [{}])[0].get("value", {}).get("messages", [{}])[0]
@@ -182,7 +181,6 @@ async def webhook(request: Request):
 
             messages[from_number].append({"role": "user", "content": chat_message})
             save_message(from_number, "user", chat_message)
-            print(messages[from_number])
             print("Sending message to AI model...")
             ai_url = "http://localhost:11434/api/chat"
             payload = {
@@ -202,7 +200,6 @@ async def webhook(request: Request):
             save_message(from_number, "assistant", message_bot)
 
             if data['done']:
-                print(message_bot)
                 
                 # Update the last bot message
                 last_bot[from_number] = message_bot
@@ -221,7 +218,6 @@ async def webhook(request: Request):
                 response.raise_for_status()
                 
                 # Print response log
-                print(response.json())
                 return JSONResponse(content={"status": "success"}, status_code=200)
     except Exception as e:
         print(f"Error: {e}")
