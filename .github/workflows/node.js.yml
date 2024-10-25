@@ -23,6 +23,6 @@ jobs:
           port: ${{ secrets.PORT }}
           command_timeout: 200m
           script: |
-            cd ~/docker/docker-pacar-ai
+            cd ~/docker-pacar-ai
             git pull
             docker compose up -d --build
