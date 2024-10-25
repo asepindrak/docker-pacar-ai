@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 import os
 from dotenv import load_dotenv
+import json
+import sqlite3
+from datetime import datetime
 
 load_dotenv()
 
@@ -25,6 +28,62 @@ token = os.getenv("GRAPH_API_TOKEN")
 webhook_verify_token = os.getenv("WEBHOOK_VERIFY_TOKEN")
 port = int(os.getenv("PORT", 8000))
 messages = {}
+
+# Initialize SQLite database
+def init_db():
+    conn = sqlite3.connect('conversation_messages.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_number TEXT,
+            role TEXT,
+            content TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Load messages from SQLite database
+def load_messages():
+    global messages
+    conn = sqlite3.connect('conversation_messages.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT from_number, role, content, created_at FROM messages')
+    rows = cursor.fetchall()
+    for row in rows:
+        from_number, role, content, created_at = row
+        if from_number not in messages:
+            messages[from_number] = []
+        messages[from_number].append({"role": role, "content": content, "created_at": created_at})
+    conn.close()
+
+# Save message to SQLite database
+def save_message(from_number, role, content):
+    conn = sqlite3.connect('conversation_messages.db')
+    cursor = conn.cursor()
+    cursor.execute('INSERT INTO messages (from_number, role, content) VALUES (?, ?, ?)', (from_number, role, content))
+    conn.commit()
+    conn.close()
+
+# Migrate data from conversation_messages.txt to SQLite database
+def migrate_data():
+    conn = sqlite3.connect('conversation_messages.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT COUNT(*) FROM messages')
+    count = cursor.fetchone()[0]
+    if count == 0 and os.path.exists("conversation_messages.txt"):
+        with open("conversation_messages.txt", "r", encoding="utf-8") as f:
+            messages = json.load(f)
+            for from_number, msgs in messages.items():
+                for msg in msgs:
+                    save_message(from_number, msg["role"], msg["content"])
+    conn.close()
+
+init_db()
+migrate_data()
+load_messages()
 
 @app.get("/")
 async def root():
@@ -48,9 +107,11 @@ async def webhook(request: Request):
     global last_received_message
     global last_bot
     global messages
+    
     try:
         # log incoming messages
         body = await request.json()
+
         print("Incoming webhook message:", body)
 
         # check if the webhook request contains a message
@@ -67,7 +128,7 @@ async def webhook(request: Request):
             url = f"https://graph.facebook.com/v21.0/{business_phone_number_id}/messages"
 
             # Check if the current chat_message is the same as the last one
-            if (chat_message == last_received_message.get(from_number) or chat_message == last_bot.get(from_number)) and chat_message.lower() != "sayang":
+            if (chat_message == last_received_message.get(from_number) or chat_message == last_bot.get(from_number)) and chat_message.lower() != "hai":
                 print("Duplicate message!")
                 return JSONResponse(content={"status": "ignored", "message": "Duplicate message"}, status_code=200)
 
@@ -89,14 +150,17 @@ async def webhook(request: Request):
             }
             response = requests.post(url, headers=headers, json=payload)
             response.raise_for_status()
+            
 
             check_message = chat_message.lower()
             # Check if the message is a greeting and remove all characters except alphabets
-            if check_message == "sayang":
+            if check_message == "hai":
                 messages[from_number] = []
-                message_bot = "iyaa sayang.."
-                messages[from_number].append({"role": "user", "content": check_message})
+                message_bot = "apa?"
+                messages[from_number].append({"role": "user", "content": "hai"})
                 messages[from_number].append({"role": "assistant", "content": message_bot})
+                save_message(from_number, "user", "hai")
+                save_message(from_number, "assistant", message_bot)
                 print("New conversation started...")
                 # Send the response back to the WhatsApp API
                 payload = {
@@ -110,10 +174,6 @@ async def webhook(request: Request):
                 }
                 response = requests.post(url, headers=headers, json=payload)
                 response.raise_for_status()
-                # Create log txt to save the conversation history by user
-                with open(f"conversation_{from_number}.txt", "w", encoding="utf-8") as f:
-                    for msg in messages[from_number]:
-                        f.write(f"{msg['role']}: {msg['content']}\n")
                 return JSONResponse(content={"status": "ignored", "message": "New conversation started..."}, status_code=200)
 
             # Send the message to the AI model
@@ -121,6 +181,7 @@ async def webhook(request: Request):
                 messages[from_number] = []
 
             messages[from_number].append({"role": "user", "content": chat_message})
+            save_message(from_number, "user", chat_message)
             print(messages[from_number])
             print("Sending message to AI model...")
             ai_url = "http://localhost:11434/api/chat"
@@ -138,10 +199,7 @@ async def webhook(request: Request):
 
             message_bot = data['message']['content']
             messages[from_number].append({"role": "assistant", "content": message_bot})
-            # Create log txt to save the conversation history by user
-            with open(f"conversation_{from_number}.txt", "w", encoding="utf-8") as f:
-                for msg in messages[from_number]:
-                    f.write(f"{msg['role']}: {msg['content']}\n")
+            save_message(from_number, "assistant", message_bot)
 
             if data['done']:
                 print(message_bot)
