@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+    pacar-api:
+        build:
+            context: ./
+            dockerfile: Dockerfile
+        volumes:
+            - api:/app
+        ports:
+            - 8881:8000
+        container_name: pacar-api
+        command: uvicorn app:app --host 0.0.0.0 --port 8000
+
+volumes:
+    api:
