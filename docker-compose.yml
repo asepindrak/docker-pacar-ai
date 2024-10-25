@@ -11,6 +11,13 @@ services:
             - 8881:8000
         container_name: pacar-api
         command: uvicorn app:app --host 0.0.0.0 --port 8000
+    nginx:
+        image: nginx:latest
+        volumes:
+            - ./html:/usr/share/nginx/html
+        ports:
+            - 8882:80
+        container_name: nginx
 
 volumes:
     api:
