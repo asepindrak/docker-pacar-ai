@@ -11,6 +11,7 @@ COPY requirements.txt .
 
 # dependencies
 RUN pip install -r requirements.txt
+RUN pip install -U python-dotenv
 
 COPY app/ .
 
