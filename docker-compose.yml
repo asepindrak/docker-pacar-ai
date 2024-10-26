@@ -11,6 +11,16 @@ services:
             - 8881:8000
         container_name: pacar-api
         command: uvicorn app:app --host 0.0.0.0 --port 8000
+    pacar-ui:
+        build:
+            context: ./
+            dockerfile: Dockerfile.ui
+        volumes:
+            - ui:/app
+        ports:
+            - 8883:8000
+        container_name: pacar-ui
+        command: streamlit run main.py --server.port 8000
     nginx:
         image: nginx:latest
         volumes:
@@ -21,3 +31,4 @@ services:
 
 volumes:
     api:
+    ui:
