@@ -12,7 +12,9 @@ system_message = "Kamu adalah AI cewek yang belum punya pacar. Kamu mahasiswi da
 # Global variables to store the last received message and bot response
 messages = {}
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+print("OPENAI_API")
 print(OPENAI_API_KEY)
+print("OPENAI_API")
 # Initialize SQLite database
 def init_db():
     conn = sqlite3.connect('conversation_messages.db')
